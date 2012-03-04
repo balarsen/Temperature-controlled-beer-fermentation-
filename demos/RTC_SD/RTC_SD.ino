@@ -11,6 +11,9 @@ const int chipSelect = 10;
 // the digital pins that connect to the LEDs
 const int redLEDpin = 3;    
 const int greenLEDpin = 4;    
+const unsigned long SEC1=1000;
+const unsigned long SEC3=3000;
+const unsigned long SEC5=5000;
 
 ///////////////////////////////////////////////
 ////// globals 
@@ -21,6 +24,7 @@ SdVolume volume;
 SdFile root;
 int ledStateGreen = LOW;             // ledState used to set the LED
 int ledStateRed   = LOW;             // ledState used to set the LED
+unsigned long trigger_millis=0; 
 
 
 void formatTimeDigits(char strOut[3], int num)
@@ -57,12 +61,12 @@ String ISOTIME(DateTime inval) {
 
 void setup () {
   delay(3000);  // boot up delay
-    Serial.begin(19200);
-    pinMode(greenLEDpin, OUTPUT);    
-    pinMode(redLEDpin, OUTPUT);        
-    
-    Wire.begin();
-    RTC.begin();
+  Serial.begin(19200);
+  pinMode(greenLEDpin, OUTPUT);    
+  pinMode(redLEDpin, OUTPUT);        
+  
+  Wire.begin();
+  RTC.begin();
 
   if (! RTC.isrunning()) {
     Serial.println("RTC is NOT running!");
@@ -138,19 +142,19 @@ File fp;
   
   
 void loop () {
-    DateTime now = RTC.now();
-    Serial.print(ISOTIME(now));
-    Serial.print("\t");
-    Serial.println(millis());
+    if (millis() >= trigger_millis) {
+      trigger_millis = millis() + SEC5;
+      DateTime now = RTC.now();
+      Serial.print(ISOTIME(now));
+      Serial.print("\t");
+      Serial.println(millis());
+  
+      fp = SD.open("datafile.txt", FILE_WRITE);
+      if (fp.print(ISOTIME(now)) == 0)
+        Serial.println("got zero");
+      fp.print("\t");
+      fp.println(millis());
+      fp.close();
+    }    
 
-
-    fp = SD.open("datafile.txt", FILE_WRITE);
-    if (fp.print(ISOTIME(now)) == 0)
-      Serial.println("got zero");
-    fp.print("\t");
-    fp.println(millis());
-    fp.close();
-    
-
-    delay(3000);
 }
