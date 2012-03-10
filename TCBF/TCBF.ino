@@ -29,7 +29,7 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 
 const char* BLANK={"                "};
 
-unsigned int tempPt = 70;
+uint8_t tempPt = 70;
 
 
 
@@ -54,7 +54,7 @@ void setup() {
   printSetTemp();
   //lcd.noDisplay();
   //lcd.setBacklight(0x0);
-  while (1);
+  lcd.clear();
 }
 
 void printSetTemp() {
@@ -96,21 +96,18 @@ float currentTemp() {
   int tempReading = analogRead(tempPin);    
   // converting that reading to voltage, for 3.3v arduino use 3.3, for 5.0, use 5.0
   float voltage = tempReading * aref_voltage / 1024;  
-  float temperatureC = (voltage - 0.5) * 100 ;
-  float temperatureF = (temperatureC * 9 / 5) + 32;  
-
+  return ( (uint8_t)(((voltage - 0.5) * 100 * 9 / 5) + 32) );  
 }
-
 
 void displayCurrTemp() {
 Serial.println("In displayCurrTemp");
   lcd.setCursor(0, 0);
-  lcd.print("Curr T: ");
-  char line[5];
-  sprintf(line, "%3u F", tempPt);
-  lcd.setCursor(0, 1);
+  char line[16];
+  sprintf(line, "Curr T: %3u F", currentTemp());
   lcd.print(line);
-  delay(100);  // slow things down
+  lcd.setCursor(0, 1);
+  sprintf(line, " Set T: %3u F", tempPt);
+  lcd.print(line);
 }
 
 void setTemp() {
@@ -145,53 +142,9 @@ Serial.println("tempPt--");
 
 uint8_t i=0;
 void loop() {
-  // set the cursor to column 0, line 1
-  // (note: line 1 is the second row, since counting begins with 0):
-  lcd.setCursor(0, 1);
-  // print the number of seconds since reset:
-  lcd.print(millis()/1000);
-
-  uint8_t buttons = lcd.readButtons();
-
-  if (buttons) {
-    lcd.clear();
-    lcd.setCursor(0,0);
-    if (buttons & BUTTON_UP) {
-      lcd.print("UP ");
-      lcd.setBacklight(RED);
-      delay(1000);
-      lcd.setCursor(0,0);
-      lcd.print("Hello, world!");
-    }
-    if (buttons & BUTTON_DOWN) {
-      lcd.print("DOWN ");
-      lcd.setBacklight(YELLOW);
-      delay(1000);
-      lcd.setCursor(0,0);
-      lcd.print("Hello, world!");
-    }
-    if (buttons & BUTTON_LEFT) {
-      lcd.print("LEFT ");
-      lcd.setBacklight(GREEN);
-      delay(1000);
-      lcd.setCursor(0,0);
-      lcd.print("Hello, world!");
-    }
-    if (buttons & BUTTON_RIGHT) {
-      lcd.print("RIGHT ");
-      lcd.setBacklight(TEAL);
-      delay(1000);
-      lcd.setCursor(0,0);
-      lcd.print("Hello, world!");
-    }
-    if (buttons & BUTTON_SELECT) {
-      lcd.print("SELECT ");
-      lcd.setBacklight(VIOLET);
-      delay(1000);
-      lcd.setCursor(0,0);
-      lcd.print("Hello, world!");
-    }
-  }
+  displayCurrTemp();
+  delay(1000);
+  
 }
 
 
