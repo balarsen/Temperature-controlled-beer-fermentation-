@@ -34,6 +34,9 @@ uint8_t tempPt = 70;
 
 
 void setup() {
+  // We are going to use the 3.3V ref
+  analogReference(EXTERNAL);
+
   // Debugging output
   Serial.begin(19200);
   // set up the LCD's number of rows and columns: 
@@ -92,11 +95,52 @@ Serial.println("In displayTempSet");
   delay(100);  // slow things down
 }
 
-float currentTemp() {
-  int tempReading = analogRead(tempPin);    
-  // converting that reading to voltage, for 3.3v arduino use 3.3, for 5.0, use 5.0
-  float voltage = tempReading * aref_voltage / 1024;  
-  return ( (uint8_t)(((voltage - 0.5) * 100 * 9 / 5) + 32) );  
+
+  // which analog pin to connect
+#define THERMISTORPIN A0         
+// resistance at 25 degrees C
+#define THERMISTORNOMINAL 10000      
+// temp. for nominal resistance (almost always 25 C)
+#define TEMPERATURENOMINAL 25   
+// how many samples to take and average, more takes longer
+// but is more 'smooth'
+#define NUMSAMPLES 5
+// The beta coefficient of the thermistor (usually 3000-4000)
+#define BCOEFFICIENT 3950
+// the value of the 'other' resistor
+#define SERIESRESISTOR 10000   // TODO measure this 
+byte currentTemp() {
+  // thanks ladyada!!
+  // http://www.ladyada.net/learn/sensors/thermistor.html 
+  uint8_t i;
+  float average=0; 
+  for (i=0; i< NUMSAMPLES; i++) {
+     average += analogRead(THERMISTORPIN);
+     delay(10);
+  }
+  average /= NUMSAMPLES;
+ 
+  Serial.print("Average analog reading "); 
+  Serial.println(average);
+ 
+  // convert the value to resistance
+  average = 1023 / average - 1;
+  average = SERIESRESISTOR / average;
+  Serial.print("Thermistor resistance "); 
+  Serial.println(average);
+ 
+  float steinhart;
+  steinhart = average / THERMISTORNOMINAL;     // (R/Ro)
+  steinhart = log(steinhart);                  // ln(R/Ro)
+  steinhart /= BCOEFFICIENT;                   // 1/B * ln(R/Ro)
+  steinhart += 1.0 / (TEMPERATURENOMINAL + 273.15); // + (1/To)
+  steinhart = 1.0 / steinhart;                 // Invert
+  steinhart -= 273.15;                         // convert to C
+  steinhart = (9./5.)*steinhart + 32;
+  Serial.print("Temperature "); 
+  Serial.print(steinhart);
+  Serial.println(" *F");
+  return (byte)steinhart;   // a bit of waste to do a real calc then (byte) but for now 
 }
 
 void displayCurrTemp() {
