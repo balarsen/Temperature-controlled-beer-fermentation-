@@ -1,5 +1,5 @@
 #include <SD.h>
-//#include "RTClib.h"
+#include "RTClib.h"
 
 // include the library code:
 #include <Wire.h>
@@ -7,6 +7,8 @@
 #include <Adafruit_RGBLCDShield.h>
 
 Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
+
+#define ECHO_TO_SERIAL 1
 
 // These #defines make it easy to set the backlight color
 #define RED 0x1
@@ -24,6 +26,16 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 #define CLOSERNG 5
 #define BADRNG 10
 
+// how many milliseconds between checking the temp data and logging it. 
+#define LOG_INTERVAL  5000 
+#define TEMP_INTERVAL 5000
+// how many milliseconds before writing the logged data permanently to disk
+// set it to 10*LOG_INTERVAL to write all data every 10 datareads, you could lose up to 
+// the last 10 reads if power is lost but it uses less power and is much faster!
+#define SYNC_INTERVAL 10
+uint32_t lastMillis=0;
+uint8_t sync_cnt=0;
+
 // The analog pins that connect to the sensors
 #define tempPin 1                // analog 1
 #define aref_voltage 3.3         // we tie 3.3V to ARef and measure it with a multimeter!
@@ -33,7 +45,7 @@ const char* BLANK={"                "};
 
 uint8_t tempPt = 70;
 
-
+RTC_DS1307 RTC; // define the Real Time Clock object
 
 void setup() {
   // We are going to use the 3.3V ref
@@ -54,6 +66,17 @@ void setup() {
   Serial.print("Took "); Serial.print(time); Serial.println(" ms to setup the LCD");
   // add a bootup delay, If other setup takes a while this delay can go away
   delay(3000);
+  //////////////////////////
+  // Setup the RTC
+  /////////////////////////
+  RTC.begin();
+  if (! RTC.isrunning()) {
+    Serial.println("RTC is NOT running!");
+    // following line sets the RTC to the date & time this sketch was compiled
+  }
+  RTC.adjust(DateTime(__DATE__, __TIME__));
+
+  
   lcd.clear();
   setTemp();
   printSetTemp();
@@ -130,7 +153,6 @@ uint8_t currentTemp() {
   average = SERIESRESISTOR / average;
   Serial.print("Thermistor resistance "); 
   Serial.println(average);
- 
   float steinhart;
   steinhart = average / THERMISTORNOMINAL;     // (R/Ro)
   steinhart = log(steinhart);                  // ln(R/Ro)
@@ -188,7 +210,6 @@ Serial.println("tempPt--");
 }
 
 void setBkgd(uint8_t curTmp) {
- 
   if (abs(curTmp-tempPt) > BADRNG) 
     lcd.setBacklight(BAD);
   else if (abs(curTmp-tempPt) > CLOSERNG) 
@@ -197,14 +218,69 @@ void setBkgd(uint8_t curTmp) {
     lcd.setBacklight(GOOD);
 }
 
+/*
+void writeTime() {
+  now = RTC.now();
+  // log time
+  logfile.print(now.unixtime()); // seconds since 1/1/1970
+  logfile.print(", ");
+  logfile.print('"');
+  logfile.print(now.month(), DEC);
+  logfile.print("/");
+  logfile.print(now.day(), DEC);
+  logfile.print("/");
+  logfile.print(now.year(), DEC);
+  logfile.print(" ");
+  logfile.print(now.hour(), DEC);
+  logfile.print(":");
+  logfile.print(now.minute(), DEC);
+  logfile.print(":");
+  logfile.print(now.second(), DEC);
+  logfile.print('"');
+#if ECHO_TO_SERIAL
+  Serial.print(now.unixtime()); // seconds since 1/1/1970
+  Serial.print(", ");
+  Serial.print('"');
+  Serial.print(now.year(), DEC);
+  Serial.print("/");
+  Serial.print(now.month(), DEC);
+  Serial.print("/");
+  Serial.print(now.day(), DEC);
+  Serial.print(" ");
+  Serial.print(now.hour(), DEC);
+  Serial.print(":");
+  Serial.print(now.minute(), DEC);
+  Serial.print(":");
+  Serial.print(now.second(), DEC);
+  Serial.print('"');
+#endif //ECHO_TO_SERIAL
+}
+*/
 
 
-uint8_t i=0;
 void loop() {
-  uint8_t curTmp;
-  curTmp = displayCurrTemp();
-  setBkgd(curTmp);
-  delay(1000);
+  uint32_t curMillis=millis();
+  if ( (curMillis-lastMillis)>TEMP_INTERVAL) {
+    lastMillis = curMillis;
+    uint8_t curTmp;
+    curTmp = displayCurrTemp();
+    setBkgd(curTmp);
+    if ( (sync_cnt++) >= SYNC_INTERVAL) {
+      // logfile.flush();
+    }
+    
+  }
+
+
+
+//// how many milliseconds between checking the temp data and logging it. 
+//#define LOG_INTERVAL  5000 
+//#define TEMP_INTERVAL 5000
+//// how many milliseconds before writing the logged data permanently to disk
+//// set it to 10*LOG_INTERVAL to write all data every 10 datareads, you could lose up to 
+//// the last 10 reads if power is lost but it uses less power and is much faster!
+//#define SYNC_INTERVAL 10*LOG_INTERVAL
+  
   
 }
 
