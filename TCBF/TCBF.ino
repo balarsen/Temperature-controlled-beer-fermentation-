@@ -30,6 +30,15 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 #define CLOSERNG 5
 #define BADRNG 10
 
+// the TEMP defines
+#define TEMP_RNG 2
+#define COOLING 1
+#define HEATING 2
+#define STATIC 0
+#define HEATING_PIN 4
+#define COOLING_PIN 5
+uint8_t state=STATIC;
+
 // how many milliseconds between checking the temp data and logging it. 
 #define LOG_INTERVAL  5000 
 #define TEMP_INTERVAL 500
@@ -87,6 +96,14 @@ void setup() {
     error("Card failed, or not present");
   }
   Serial.println("card initialized.");
+
+  //////////////////////////////////
+  //  heat cool pin setup
+  /////////////////////////////////
+  pinMode(HEATING_PIN, OUTPUT);
+  pinMode(COOLING_PIN, OUTPUT);
+  digitalWrite(HEATING_PIN, LOW); 
+  digitalWrite(COOLING_PIN, LOW);
 
   //////////////////////////////////////
   //  Setup the LCD
@@ -327,23 +344,41 @@ void writeTime() {
 #endif //ECHO_TO_SERIAL
 }
 
+void heatCool() {
+  uint8_t curTmp;
+  curTmp = displayCurrTemp();
+  if ( (curTmp-tempPt) > TEMP_RNG) {
+    state = COOLING;
+    digitalWrite(COOLING_PIN, HIGH);
+    digitalWrite(HEATING_PIN, LOW); 
+  }
+  else if ( (tempPt-curTmp) > TEMP_RNG) {
+    state = HEATING;
+    digitalWrite(COOLING_PIN, LOW);
+    digitalWrite(HEATING_PIN, HIGH); 
+  }
+  else {
+    state = STATIC;
+    digitalWrite(COOLING_PIN, LOW);
+    digitalWrite(HEATING_PIN, LOW); 
+  }
+}
 
-uint8_t state=0;
 void printState() {
   switch (state) {
-    case 1: // heating
+    case HEATING: // heating
       logfile.print("heating");
       #if ECHO_TO_SERIAL
       Serial.print("heating"); 
       #endif //ECHO_TO_SERIAL
       break;
-    case 255:  // cooling
+    case COOLING:  // cooling
       logfile.print("cooling"); 
       #if ECHO_TO_SERIAL
       Serial.print("cooling"); 
       #endif //ECHO_TO_SERIAL
       break;
-    default: // nothing
+    case STATIC: // nothing
       logfile.print("static"); 
       #if ECHO_TO_SERIAL
       Serial.print("static"); 
@@ -394,6 +429,11 @@ void loop() {
       sync_cnt = 0;
       logfile.flush();
       digitalWrite(redLEDpin, LOW);
+      // #define TEMP_RNG 5
+      /////////////////////////
+      // Change the state for the Heat/Cool
+      /////////////////////////
+      heatCool();
     }
   }
   if ( (curMillis-lastReadMillis)>TEMP_INTERVAL) {
