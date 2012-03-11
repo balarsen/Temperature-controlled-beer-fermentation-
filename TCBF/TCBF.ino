@@ -111,7 +111,7 @@ Serial.println("In displayTempSet");
 #define BCOEFFICIENT 3950
 // the value of the 'other' resistor
 #define SERIESRESISTOR 10000   // TODO measure this 
-byte currentTemp() {
+uint8_t currentTemp() {
   // thanks ladyada!!
   // http://www.ladyada.net/learn/sensors/thermistor.html 
   uint8_t i;
@@ -142,14 +142,14 @@ byte currentTemp() {
   Serial.print("Temperature "); 
   Serial.print(steinhart);
   Serial.println(" *F");
-  return (byte)steinhart;   // a bit of waste to do a real calc then (byte) but for now 
+  return (uint8_t)steinhart;   // a bit of waste to do a real calc then (uint8_t) but for now 
 }
 
-byte displayCurrTemp() {
+uint8_t displayCurrTemp() {
 Serial.println("In displayCurrTemp");
   lcd.setCursor(0, 0);
   char line[16];
-  byte curTmp;
+  uint8_t curTmp;
   curTmp = currentTemp();
   sprintf(line, "Curr T: %3u F", curTmp);
   lcd.print(line);
@@ -187,7 +187,7 @@ Serial.println("tempPt--");
   }
 }
 
-void setBkgd(byte curTmp) {
+void setBkgd(uint8_t curTmp) {
  
   if (abs(curTmp-tempPt) > BADRNG) 
     lcd.setBacklight(BAD);
@@ -201,7 +201,7 @@ void setBkgd(byte curTmp) {
 
 uint8_t i=0;
 void loop() {
-  byte curTmp;
+  uint8_t curTmp;
   curTmp = displayCurrTemp();
   setBkgd(curTmp);
   delay(1000);
