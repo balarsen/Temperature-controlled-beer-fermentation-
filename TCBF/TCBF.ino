@@ -21,6 +21,8 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 #define GOOD GREEN
 #define CLOSE YELLOW
 #define BAD RED
+#define CLOSERNG 5
+#define BADRNG 10
 
 // The analog pins that connect to the sensors
 #define tempPin 1                // analog 1
@@ -143,15 +145,18 @@ byte currentTemp() {
   return (byte)steinhart;   // a bit of waste to do a real calc then (byte) but for now 
 }
 
-void displayCurrTemp() {
+byte displayCurrTemp() {
 Serial.println("In displayCurrTemp");
   lcd.setCursor(0, 0);
   char line[16];
-  sprintf(line, "Curr T: %3u F", currentTemp());
+  byte curTmp;
+  curTmp = currentTemp();
+  sprintf(line, "Curr T: %3u F", curTmp);
   lcd.print(line);
   lcd.setCursor(0, 1);
   sprintf(line, " Set T: %3u F", tempPt);
   lcd.print(line);
+  return(curTmp);
 }
 
 void setTemp() {
@@ -182,11 +187,23 @@ Serial.println("tempPt--");
   }
 }
 
+void setBkgd(byte curTmp) {
+ 
+  if (abs(curTmp-tempPt) > BADRNG) 
+    lcd.setBacklight(BAD);
+  else if (abs(curTmp-tempPt) > CLOSERNG) 
+    lcd.setBacklight(CLOSE);
+  else
+    lcd.setBacklight(GOOD);
+}
+
 
 
 uint8_t i=0;
 void loop() {
-  displayCurrTemp();
+  byte curTmp;
+  curTmp = displayCurrTemp();
+  setBkgd(curTmp);
   delay(1000);
   
 }
