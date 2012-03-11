@@ -272,15 +272,15 @@ Serial.println("tempPt--");
 uint8_t setBkgd(uint8_t curTmp) {
   if (abs(curTmp-tempPt) > BADRNG) {
     lcd.setBacklight(BAD);
-    return (2);
+    return (RED);
   }
   else if (abs(curTmp-tempPt) > CLOSERNG) {
     lcd.setBacklight(CLOSE);
-    return (1);
+    return (YELLOW);
   }
   else {
     lcd.setBacklight(GOOD);
-    return (0); 
+    return (GREEN); 
   }
 }
 
@@ -370,19 +370,19 @@ void loop() {
     #endif //ECHO_TO_SERIAL
     printState();
     switch (bkgd) {
-      case 2: // heating
+      case RED: // heating
         logfile.println(", red");
         #if ECHO_TO_SERIAL
         Serial.println(", red");
         #endif //ECHO_TO_SERIAL
         break;
-      case 1:  // cooling
+      case YELLOW:  // cooling
         logfile.println(", yellow"); 
         #if ECHO_TO_SERIAL
         Serial.println(", yellow"); 
         #endif //ECHO_TO_SERIAL
         break;
-      case 0: // nothing
+      case GREEN: // nothing
         logfile.println(", green");
         #if ECHO_TO_SERIAL
         Serial.println(", green");
