@@ -332,16 +332,22 @@ uint8_t state=0;
 void printState() {
   switch (state) {
     case 1: // heating
-      logfile.print("heating");      
+      logfile.print("heating");
+      #if ECHO_TO_SERIAL
       Serial.print("heating"); 
+      #endif //ECHO_TO_SERIAL
       break;
     case 255:  // cooling
       logfile.print("cooling"); 
+      #if ECHO_TO_SERIAL
       Serial.print("cooling"); 
+      #endif //ECHO_TO_SERIAL
       break;
     default: // nothing
       logfile.print("static"); 
+      #if ECHO_TO_SERIAL
       Serial.print("static"); 
+      #endif //ECHO_TO_SERIAL
   }
 }
 
@@ -357,22 +363,30 @@ void loop() {
     logfile.print(", ");
     logfile.print(curTmp);
     logfile.print(", ");
+    #if ECHO_TO_SERIAL
     Serial.print(", ");
     Serial.print(curTmp);
     Serial.print(", ");
+    #endif //ECHO_TO_SERIAL
     printState();
     switch (bkgd) {
       case 2: // heating
         logfile.println(", red");
+        #if ECHO_TO_SERIAL
         Serial.println(", red");
+        #endif //ECHO_TO_SERIAL
         break;
       case 1:  // cooling
         logfile.println(", yellow"); 
+        #if ECHO_TO_SERIAL
         Serial.println(", yellow"); 
+        #endif //ECHO_TO_SERIAL
         break;
       case 0: // nothing
         logfile.println(", green");
+        #if ECHO_TO_SERIAL
         Serial.println(", green");
+        #endif //ECHO_TO_SERIAL
     }
     digitalWrite(greenLEDpin, LOW);
     if ( (sync_cnt++) >= SYNC_INTERVAL) {
