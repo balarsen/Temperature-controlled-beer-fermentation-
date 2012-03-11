@@ -10,6 +10,10 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 
 #define ECHO_TO_SERIAL 1
 
+// the digital pins that connect to the LEDs
+#define redLEDpin 2
+#define greenLEDpin 3
+
 // These #defines make it easy to set the backlight color
 #define RED 0x1
 #define YELLOW 0x3
@@ -41,6 +45,11 @@ uint8_t sync_cnt=0;
 #define tempPin 1                // analog 1
 #define aref_voltage 3.3         // we tie 3.3V to ARef and measure it with a multimeter!
 
+// for the data logging shield, we use digital pin 10 for the SD cs line
+const int chipSelect = 10;
+
+// the logging file
+File logfile;
 
 const char* BLANK={"                "};
 
@@ -48,10 +57,40 @@ uint8_t tempPt = 70;
 
 RTC_DS1307 RTC; // define the Real Time Clock object
 
+void error(char *str)
+{
+  Serial.print("error: ");
+  Serial.println(str);
+  // red LED indicates error
+  digitalWrite(redLEDpin, HIGH);
+  lcd.clear();
+  lcd.print("   !!Error!!");
+  lcd.setBacklight(RED);
+  while(1);
+}
+
 void setup() {
   // We are going to use the 3.3V ref
   analogReference(EXTERNAL);
+  ////////////////////////////////
+  /// SETUP THE SD CARD
+  ///////////////////////////////
+  // use debugging LEDs
+  pinMode(redLEDpin, OUTPUT);
+  pinMode(greenLEDpin, OUTPUT);
+  // make sure that the default chip select pin is set to
+  // output, even if you don't use it:
+  pinMode(chipSelect, OUTPUT);
+  
+  // see if the card is present and can be initialized:
+  if (!SD.begin(chipSelect)) {
+    error("Card failed, or not present");
+  }
+  Serial.println("card initialized.");
 
+  //////////////////////////////////////
+  //  Setup the LCD
+  //////////////////////////////////////
   // Debugging output
   Serial.begin(19200);
   // set up the LCD's number of rows and columns: 
@@ -77,7 +116,27 @@ void setup() {
   }
   RTC.adjust(DateTime(__DATE__, __TIME__));
 
+  ////////////////////////////
+  // files, start one
+  ////////////////////////////
+    // create a new file
+  char filename[] = "LOGGER00.CSV";
+  for (uint8_t i = 0; i < 100; i++) {
+    filename[6] = i/10 + '0';
+    filename[7] = i%10 + '0';
+    if (! SD.exists(filename)) {
+      // only open a new file if it doesn't exist
+      logfile = SD.open(filename, FILE_WRITE); 
+      break;  // leave the loop!
+    }
+  }
+  if (! logfile) {
+    error("couldnt create file");
+  }
   
+  /////////////////////////////
+  // setup the controller temp
+  /////////////////////////////
   lcd.clear();
   setTemp();
   printSetTemp();
@@ -230,7 +289,9 @@ void writeTime() {
   DateTime now;
   now = RTC.now();
   // log time
-/*  logfile.print(now.unixtime()); // seconds since 1/1/1970
+  logfile.print(millis());
+  logfile.print(", "); 
+  logfile.print(now.unixtime()); // seconds since 1/1/1970
   logfile.print(", ");
   logfile.print('"');
   logfile.print(now.month(), DEC);
@@ -245,7 +306,6 @@ void writeTime() {
   logfile.print(":");
   logfile.print(now.second(), DEC);
   logfile.print('"');
-  */
 #if ECHO_TO_SERIAL
   Serial.print(millis());
   Serial.print(", ");  
@@ -272,43 +332,54 @@ uint8_t state=0;
 void printState() {
   switch (state) {
     case 1: // heating
+      logfile.print("heating");      
       Serial.print("heating"); 
       break;
     case 255:  // cooling
+      logfile.print("cooling"); 
       Serial.print("cooling"); 
       break;
     default: // nothing
+      logfile.print("static"); 
       Serial.print("static"); 
-      // if nothing else matches, do the default
-      // default is optional
   }
 }
 
 void loop() {
   uint32_t curMillis=millis();
   if ( (curMillis-lastLogMillis)>LOG_INTERVAL) {
+    digitalWrite(greenLEDpin, HIGH);
     lastLogMillis = curMillis;
     uint8_t curTmp, bkgd;
     curTmp = displayCurrTemp();
     bkgd = setBkgd(curTmp);
     writeTime();
+    logfile.print(", ");
+    logfile.print(curTmp);
+    logfile.print(", ");
     Serial.print(", ");
     Serial.print(curTmp);
     Serial.print(", ");
     printState();
     switch (bkgd) {
       case 2: // heating
+        logfile.println(", red");
         Serial.println(", red");
         break;
       case 1:  // cooling
+        logfile.println(", yellow"); 
         Serial.println(", yellow"); 
         break;
       case 0: // nothing
+        logfile.println(", green");
         Serial.println(", green");
     }
+    digitalWrite(greenLEDpin, LOW);
     if ( (sync_cnt++) >= SYNC_INTERVAL) {
+      digitalWrite(redLEDpin, HIGH);
       sync_cnt = 0;
-      // logfile.flush();
+      logfile.flush();
+      digitalWrite(redLEDpin, LOW);
     }
   }
   if ( (curMillis-lastReadMillis)>TEMP_INTERVAL) {
