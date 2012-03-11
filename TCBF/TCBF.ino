@@ -28,12 +28,13 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 
 // how many milliseconds between checking the temp data and logging it. 
 #define LOG_INTERVAL  5000 
-#define TEMP_INTERVAL 5000
+#define TEMP_INTERVAL 500
 // how many milliseconds before writing the logged data permanently to disk
 // set it to 10*LOG_INTERVAL to write all data every 10 datareads, you could lose up to 
 // the last 10 reads if power is lost but it uses less power and is much faster!
 #define SYNC_INTERVAL 10
-uint32_t lastMillis=0;
+uint32_t lastLogMillis=0;
+uint32_t lastReadMillis=0;
 uint8_t sync_cnt=0;
 
 // The analog pins that connect to the sensors
@@ -209,20 +210,27 @@ Serial.println("tempPt--");
   }
 }
 
-void setBkgd(uint8_t curTmp) {
-  if (abs(curTmp-tempPt) > BADRNG) 
+uint8_t setBkgd(uint8_t curTmp) {
+  if (abs(curTmp-tempPt) > BADRNG) {
     lcd.setBacklight(BAD);
-  else if (abs(curTmp-tempPt) > CLOSERNG) 
+    return (2);
+  }
+  else if (abs(curTmp-tempPt) > CLOSERNG) {
     lcd.setBacklight(CLOSE);
-  else
+    return (1);
+  }
+  else {
     lcd.setBacklight(GOOD);
+    return (0); 
+  }
 }
 
-/*
+
 void writeTime() {
+  DateTime now;
   now = RTC.now();
   // log time
-  logfile.print(now.unixtime()); // seconds since 1/1/1970
+/*  logfile.print(now.unixtime()); // seconds since 1/1/1970
   logfile.print(", ");
   logfile.print('"');
   logfile.print(now.month(), DEC);
@@ -237,7 +245,10 @@ void writeTime() {
   logfile.print(":");
   logfile.print(now.second(), DEC);
   logfile.print('"');
+  */
 #if ECHO_TO_SERIAL
+  Serial.print(millis());
+  Serial.print(", ");  
   Serial.print(now.unixtime()); // seconds since 1/1/1970
   Serial.print(", ");
   Serial.print('"');
@@ -255,32 +266,58 @@ void writeTime() {
   Serial.print('"');
 #endif //ECHO_TO_SERIAL
 }
-*/
 
+
+uint8_t state=0;
+void printState() {
+  switch (state) {
+    case 1: // heating
+      Serial.print("heating"); 
+      break;
+    case 255:  // cooling
+      Serial.print("cooling"); 
+      break;
+    default: // nothing
+      Serial.print("static"); 
+      // if nothing else matches, do the default
+      // default is optional
+  }
+}
 
 void loop() {
   uint32_t curMillis=millis();
-  if ( (curMillis-lastMillis)>TEMP_INTERVAL) {
-    lastMillis = curMillis;
+  if ( (curMillis-lastLogMillis)>LOG_INTERVAL) {
+    lastLogMillis = curMillis;
+    uint8_t curTmp, bkgd;
+    curTmp = displayCurrTemp();
+    bkgd = setBkgd(curTmp);
+    writeTime();
+    Serial.print(", ");
+    Serial.print(curTmp);
+    Serial.print(", ");
+    printState();
+    switch (bkgd) {
+      case 2: // heating
+        Serial.println(", red");
+        break;
+      case 1:  // cooling
+        Serial.println(", yellow"); 
+        break;
+      case 0: // nothing
+        Serial.println(", green");
+    }
+    if ( (sync_cnt++) >= SYNC_INTERVAL) {
+      sync_cnt = 0;
+      // logfile.flush();
+    }
+  }
+  if ( (curMillis-lastReadMillis)>TEMP_INTERVAL) {
+    lastReadMillis = curMillis;
     uint8_t curTmp;
     curTmp = displayCurrTemp();
     setBkgd(curTmp);
-    if ( (sync_cnt++) >= SYNC_INTERVAL) {
-      // logfile.flush();
-    }
-    
   }
 
-
-
-//// how many milliseconds between checking the temp data and logging it. 
-//#define LOG_INTERVAL  5000 
-//#define TEMP_INTERVAL 5000
-//// how many milliseconds before writing the logged data permanently to disk
-//// set it to 10*LOG_INTERVAL to write all data every 10 datareads, you could lose up to 
-//// the last 10 reads if power is lost but it uses less power and is much faster!
-//#define SYNC_INTERVAL 10*LOG_INTERVAL
-  
   
 }
 
