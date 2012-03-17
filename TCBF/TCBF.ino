@@ -1,3 +1,4 @@
+#include <TimerOne.h>
 #include <SD.h>
 #include "RTClib.h"
 
@@ -39,16 +40,37 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 #define COOLING_PIN 5
 uint8_t state=STATIC;
 
-// how many milliseconds between checking the temp data and logging it. 
-#define LOG_INTERVAL  5000 
-#define TEMP_INTERVAL 500
-// how many milliseconds before writing the logged data permanently to disk
-// set it to 10*LOG_INTERVAL to write all data every 10 datareads, you could lose up to 
-// the last 10 reads if power is lost but it uses less power and is much faster!
-#define SYNC_INTERVAL 10
-uint32_t lastLogMillis=0;
-uint32_t lastReadMillis=0;
+// how long between clock ticks
+#define TICK_TIME 100000  // 0.1 seconds in microseconds
+
+// how many lock ticks between checking the temp data and logging it. 
+#define LOG_INTERVAL  50  // 5 seconds
+uint8_t log_cnt=0;
+#define LOG_BIT 0
+#define TEMP_INTERVAL 5  // 0.5 seconds
+uint8_t temp_cnt=0;
+#define TEMP_BIT 1
+// how many ticks before writing the logged data permanently to disk
+#define SYNC_INTERVAL 200  // 20 seconds
 uint8_t sync_cnt=0;
+#define SYNC_BIT 2
+#define HEATCOOL_INTERVAL 100 // 10 seconds
+uint8_t heatcool_cnt=0;
+#define HEATCOOL_BIT 3
+
+uint8_t task_run=0;
+
+void timerIsr(void) {
+   if (++log_cnt >= LOG_INTERVAL)
+     bitSet(task_run, LOG_BIT);
+   if (++temp_cnt >= TEMP_INTERVAL)
+     bitSet(task_run, TEMP_BIT);
+   if (++sync_cnt >= SYNC_INTERVAL)
+     bitSet(task_run, SYNC_BIT);
+   if (++heatcool_cnt >= HEATCOOL_INTERVAL)
+     bitSet(task_run, HEATCOOL_BIT);
+}
+
 
 // The analog pins that connect to the sensors
 #define tempPin 1                // analog 1
@@ -160,6 +182,12 @@ void setup() {
   //lcd.noDisplay();
   //lcd.setBacklight(0x0);
   lcd.clear();
+  
+  ///////////////////////////////
+  // setup the time interrupt Timer1
+  ///////////////////////////////
+  Timer1.initialize(TICK_TIME); // set a timer of length 100000 microseconds (or 0.1 sec - or 10Hz => the led will blink 5 times, 5 cycles of on-and-off, per second)
+  Timer1.attachInterrupt( timerIsr ); // attach the service routine here
 }
 
 void printSetTemp() {
@@ -344,7 +372,7 @@ void writeTime() {
 #endif //ECHO_TO_SERIAL
 }
 
-void heatCool() {
+void heatcool_task() {
   uint8_t curTmp;
   curTmp = displayCurrTemp();
   if ( (curTmp-tempPt) > TEMP_RNG) {
@@ -386,64 +414,68 @@ void printState() {
   }
 }
 
-void loop() {
-  uint32_t curMillis=millis();
-  if ( (curMillis-lastLogMillis)>LOG_INTERVAL) {
-    digitalWrite(greenLEDpin, HIGH);
-    lastLogMillis = curMillis;
-    uint8_t curTmp, bkgd;
-    curTmp = displayCurrTemp();
-    bkgd = setBkgd(curTmp);
-    writeTime();
-    logfile.print(", ");
-    logfile.print(curTmp);
-    logfile.print(", ");
-    #if ECHO_TO_SERIAL
+void temp_task(void) {
+  uint8_t curTmp;
+  curTmp = displayCurrTemp();
+  setBkgd(curTmp);
+  bitClear(task_run, TEMP_BIT);
+  temp_cnt=0;  
+}
+
+void sync_task(void) {
+  digitalWrite(redLEDpin, HIGH);
+  logfile.flush();
+  digitalWrite(redLEDpin, LOW);
+  bitClear(task_run, SYNC_BIT);
+  sync_cnt = 0;  
+}
+
+void log_task(void) {
+  uint8_t curTmp, bkgd;
+  digitalWrite(greenLEDpin, HIGH);
+  curTmp = displayCurrTemp();
+  bkgd = setBkgd(curTmp);
+  writeTime();
+  logfile.print(", ");
+  logfile.print(curTmp);
+  logfile.print(", ");
+  #if ECHO_TO_SERIAL
     Serial.print(", ");
     Serial.print(curTmp);
     Serial.print(", ");
-    #endif //ECHO_TO_SERIAL
-    printState();
-    switch (bkgd) {
-      case RED: // heating
-        logfile.println(", red");
-        #if ECHO_TO_SERIAL
+  #endif //ECHO_TO_SERIAL
+  printState();
+  switch (bkgd) {
+    case RED: // heating
+      logfile.println(", red");
+      #if ECHO_TO_SERIAL
         Serial.println(", red");
-        #endif //ECHO_TO_SERIAL
-        break;
-      case YELLOW:  // cooling
-        logfile.println(", yellow"); 
-        #if ECHO_TO_SERIAL
+      #endif //ECHO_TO_SERIAL
+      break;
+    case YELLOW:  // cooling
+      logfile.println(", yellow"); 
+      #if ECHO_TO_SERIAL
         Serial.println(", yellow"); 
-        #endif //ECHO_TO_SERIAL
-        break;
-      case GREEN: // nothing
-        logfile.println(", green");
-        #if ECHO_TO_SERIAL
+      #endif //ECHO_TO_SERIAL
+      break;
+    case GREEN: // nothing
+      logfile.println(", green");
+      #if ECHO_TO_SERIAL
         Serial.println(", green");
-        #endif //ECHO_TO_SERIAL
-    }
-    digitalWrite(greenLEDpin, LOW);
-    if ( (sync_cnt++) >= SYNC_INTERVAL) {
-      digitalWrite(redLEDpin, HIGH);
-      sync_cnt = 0;
-      logfile.flush();
-      digitalWrite(redLEDpin, LOW);
-      // #define TEMP_RNG 5
-      /////////////////////////
-      // Change the state for the Heat/Cool
-      /////////////////////////
-      heatCool();
-    }
+      #endif //ECHO_TO_SERIAL
   }
-  if ( (curMillis-lastReadMillis)>TEMP_INTERVAL) {
-    lastReadMillis = curMillis;
-    uint8_t curTmp;
-    curTmp = displayCurrTemp();
-    setBkgd(curTmp);
-  }
+  digitalWrite(greenLEDpin, LOW);
+}
 
-  
+void loop() {
+  if bitRead(task_run, LOG_BIT) // do the Log task
+    log_task();
+  if bitRead(task_run, SYNC_BIT) // do the sync task
+    sync_task();
+  if bitRead(task_run, TEMP_BIT) // do the temp task
+    temp_task();
+  if bitRead(task_run, HEATCOOL_BIT) // do the heatcool task
+    heatcool_task();
 }
 
 
